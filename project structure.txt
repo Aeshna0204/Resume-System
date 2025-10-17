@@ -1,0 +1,23 @@
+resume-system-backend/
+│
+├── config/
+│   └── db.js               # MongoDB connection
+│
+├── controllers/
+│   ├── authController.js   # Login/Register logic
+│   └── resumeController.js # (you'll add later)
+│
+├── models/
+│   ├── User.js
+│   └── Resume.js
+│
+├── routes/
+│   ├── authRoutes.js
+│   └── resumeRoutes.js     # (later for resume CRUD)
+│
+├── middleware/
+│   └── authMiddleware.js   # JWT verification middleware
+│
+├── .env                    # environment variables
+├── server.js               # main entry file
+└── package.json
