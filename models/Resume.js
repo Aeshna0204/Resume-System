@@ -19,11 +19,10 @@ const resumeSchema = new mongoose.Schema({
   headline: { type: String },
   summary: { type: String },
 
-  // core sections (store ids or embedded depending on read pattern)
+
   skills: [{ type: String }],            // lightweight array
   achievements: [{ type: String }],
 
-  // Experience / Education as embedded arrays for simplicity in prototype
   experience: [
     {
       title: String,
@@ -52,7 +51,7 @@ const resumeSchema = new mongoose.Schema({
   projects: [{ type: mongoose.Schema.Types.ObjectId, ref: "Project" }],
   courses: [{ type: mongoose.Schema.Types.ObjectId, ref: "Course" }],
   internships: [{ type: mongoose.Schema.Types.ObjectId, ref: "Internship" }],
-  hackathons: [{ type: mongoose.Schema.Types.ObjectId, ref: "Hackathons" }],
+  hackathons: [{ type: mongoose.Schema.Types.ObjectId, ref: "Hackathon" }],
 
   // misc
   languages: [{ name: String, proficiency: String }], // e.g. {name:"Hindi", proficiency:"Native"}

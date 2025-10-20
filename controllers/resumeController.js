@@ -1,15 +1,16 @@
 const User =require("../models/User.js");
 const Resume=require("../models/Resume.js");
 const Project=require("../models/Project.js");
+const PDFDocument = require('pdfkit');
 
 exports.createResume = async (req, res) => {
-  const { userId } = req.params;
+  const  userId  = req.user.id;
   try {
     const {title}=req.body;
     if(!title){
         return res.status(400).json({message:"Title is required"});
     }
-    const existing = await Resume.findOne({ userId });
+    const existing = await Resume.findOne({ userId, title });
     if (existing) return res.status(400).json({ message: "Resume already exists" });
 
     const resume = await Resume.create({ userId, title });
@@ -21,9 +22,9 @@ exports.createResume = async (req, res) => {
 
 // Get resume
 exports.getResumes = async (req, res) => {
-  const { userId } = req.params;
+  const  userId  = req.user.id;
   try {
-    const resume = await Resume.findOne({ userId })
+    const resume = await Resume.find({ userId })
       .populate("projects courses internships hackathons");
     if (!resume) return res.status(404).json({ message: "Resume not found" });
     res.status(200).json({ data: resume });
@@ -35,7 +36,8 @@ exports.getResumes = async (req, res) => {
 
 
 exports.updateGeneralInfo = async (req, res) => {
-  const { userId, resumeId } = req.params; // userId from params (better: from auth token)
+  const { resumeId } = req.params; 
+  const userId= req.user.id;
   // Update general info (headline, summary, contact)
 // allowed fields for general info update
 const allowedFields = [
@@ -55,9 +57,6 @@ const allowedFields = [
         update[field] = req.body[field];
       }
     }
-
-    // Optional: Basic runtime validation / sanitization
-    // - Ensure visibility is one of allowed values
     if (update.visibility && !["public", "private"].includes(update.visibility)) {
       return res.status(400).json({ message: "Invalid visibility value" });
     }
@@ -84,7 +83,7 @@ const allowedFields = [
 
     // Decide whether to merge contact or replace entirely.
     // Here: if contact present in request, we'll set it entirely (safer & clearer).
-    // If you want merge behavior, you'd fetch current resume and merge fields manually.
+    // If we want merge behavior,we can fetch current resume and merge fields manually.
     if (update.contact) {
       // sanitize contact subfields
       const contact = {};
@@ -121,11 +120,12 @@ const allowedFields = [
   }
 };
 
-// Update skills
 
-// 1️⃣ Update Skills
+
+//  Update Skills
 exports.updateSkills = async (req, res) => {
-  const { userId, resumeId } = req.params;
+  const { resumeId } = req.params;
+  const userId= req.user.id;
   try {
     if (!Array.isArray(req.body.skills)) {
       return res.status(400).json({ message: "Skills must be an array of strings" });
@@ -146,9 +146,10 @@ exports.updateSkills = async (req, res) => {
   }
 };
 
-// 2️⃣ Update Achievements
+// Update Achievements
 exports.updateAchievements = async (req, res) => {
-  const { userId, resumeId } = req.params;
+  const { resumeId } = req.params;
+  const userId= req.user.id;
   try {
     if (!Array.isArray(req.body.achievements)) {
       return res.status(400).json({ message: "Achievements must be an array of strings" });
@@ -169,9 +170,10 @@ exports.updateAchievements = async (req, res) => {
   }
 };
 
-// 3️⃣ Update Experience
+// Update Experience
 exports.updateExperience = async (req, res) => {
-  const { userId, resumeId } = req.params;
+  const { resumeId } = req.params;
+  const userId= req.user.id;
   try {
     if (!Array.isArray(req.body.experience)) {
       return res.status(400).json({ message: "Experience must be an array" });
@@ -200,9 +202,10 @@ exports.updateExperience = async (req, res) => {
   }
 };
 
-// 4️⃣ Update Education
+//  Update Education
 exports.updateEducation = async (req, res) => {
-  const { userId, resumeId } = req.params;
+  const { resumeId } = req.params;
+  const userId= req.user.id;
   try {
     if (!Array.isArray(req.body.education)) {
       return res.status(400).json({ message: "Education must be an array" });
@@ -232,7 +235,8 @@ exports.updateEducation = async (req, res) => {
 };
 
 exports.updateSingleEducation = async (req, res) => {
-  const { userId, resumeId, educationId } = req.params;
+  const { resumeId, educationId } = req.params;
+  const userId= req.user.id;
   const updateData = req.body;
 
   try {
@@ -255,13 +259,14 @@ exports.updateSingleEducation = async (req, res) => {
 };
 
 exports.upsertProject = async (req, res) => {
-  const { userId, resumeId } = req.params;
+  const {  resumeId } = req.params;
+  const userId= req.user.id;
   const projectData = req.body;
 
   try {
     let project;
 
-    // 🔹 Case 1: Update existing project
+    //  Case 1: Update existing project
     if (projectData._id) {
       project = await Project.findOneAndUpdate(
         { _id: projectData._id, userId },
@@ -292,7 +297,7 @@ exports.upsertProject = async (req, res) => {
       return res.status(200).json({ message: "Project updated", data: project });
     }
 
-    // 🔹 Case 2: Create new project
+    //  Case 2: Create new project
     project = new Project({
       userId,
       title: projectData.title,
@@ -311,7 +316,7 @@ exports.upsertProject = async (req, res) => {
 
     await project.save();
 
-    // 🔗 Add project reference to resume
+    //  Add project reference to resume
     await Resume.findOneAndUpdate(
       { _id: resumeId, userId },
       { $addToSet: { projects: project._id }, $set: { updatedAt: Date.now() } }
@@ -321,5 +326,479 @@ exports.upsertProject = async (req, res) => {
 
   } catch (error) {
     res.status(500).json({ message: error.message });
+  }
+};
+
+
+exports.getFullResume = async (req, res) => {
+  try {
+    const {resumeId} = req.params;
+    const resume = await Resume.findById(resumeId)
+      .populate("projects")
+      .populate("courses")
+      .populate("internships")
+      .populate("hackathons")
+      .lean(); // convert to plain object
+
+    if (!resume) {
+      return res.status(404).json({ success: false, message: "Resume not found" });
+    }
+
+    // Fetch user details
+    const user = await User.findById(resume.userId).lean();
+    if (!user) {
+      return res.status(404).json({ success: false, message: "User not found" });
+    }
+
+    // Merge contact info:
+    // - Resume overrides User contact if present
+    const mergedContact = {
+      email: resume.contact?.email || user.email,
+      phone: resume.contact?.phone || user.phone,
+      location: resume.contact?.location || user.location,
+      socials: {
+        linkedin: resume.contact?.socials?.linkedin || user.socials?.linkedin,
+        github: resume.contact?.socials?.github || user.socials?.github,
+        portfolio: resume.contact?.socials?.portfolio || user.socials?.portfolio,
+      },
+    };
+
+    // Build the final combined response
+    const fullResume = {
+      _id: resume._id,
+      title: resume.title,
+      user: {
+        id: user._id,
+        name: user.name,
+        avatarUrl: user.avatarUrl,
+        headline: user.headline || resume.headline,
+        contact: mergedContact,
+      },
+      summary: resume.summary,
+      skills: resume.skills,
+      achievements: resume.achievements,
+      experience: resume.experience,
+      education: resume.education,
+      projects: resume.projects,
+      courses: resume.courses,
+      internships: resume.internships,
+      hackathons: resume.hackathons,
+      languages: resume.languages,
+      interests: resume.interests,
+      visibility: resume.visibility,
+      lastSyncedAt: resume.lastSyncedAt,
+      createdAt: resume.createdAt,
+      updatedAt: resume.updatedAt,
+    };
+
+    res.json({
+      success: true,
+      resume: fullResume,
+    });
+
+  } catch (error) {
+    console.error("Error fetching full resume:", error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+};
+
+exports.exportResumeToPDF = async (req, res) => {
+  try {
+    const { resumeId } = req.params;
+    
+    // Fetch resume data (reusing your logic)
+    const resume = await Resume.findById(resumeId)
+      .populate("projects")
+      .populate("courses")
+      .populate("internships")
+      .populate("hackathons")
+      .lean();
+
+    if (!resume) {
+      return res.status(404).json({ success: false, message: "Resume not found" });
+    }
+
+    const user = await User.findById(resume.userId).lean();
+    if (!user) {
+      return res.status(404).json({ success: false, message: "User not found" });
+    }
+
+    // Merge contact info
+    const mergedContact = {
+      email: resume.contact?.email || user.email,
+      phone: resume.contact?.phone || user.phone,
+      location: resume.contact?.location || user.location,
+      socials: {
+        linkedin: resume.contact?.socials?.linkedin || user.socials?.linkedin,
+        github: resume.contact?.socials?.github || user.socials?.github,
+        portfolio: resume.contact?.socials?.portfolio || user.socials?.portfolio,
+      },
+    };
+
+    // Create PDF
+    const doc = new PDFDocument({ 
+      size: 'A4', 
+      margins: { top: 50, bottom: 50, left: 50, right: 50 }
+    });
+
+    // Set response headers
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${resume.title || 'resume'}.pdf"`);
+
+    // Pipe PDF to response
+    doc.pipe(res);
+
+   
+    // PDF CONTENT GENERATION
+    // Header - Name & Contact
+    doc.fontSize(24).font('Helvetica-Bold').text(user.name, { align: 'center' });
+    
+    if (user.headline || resume.headline) {
+      doc.fontSize(12).font('Helvetica').fillColor('#666')
+         .text(user.headline || resume.headline, { align: 'center' });
+    }
+    
+    doc.moveDown(0.5);
+    
+    // Contact Info
+    const contactLine = [
+      mergedContact.email,
+      mergedContact.phone,
+      mergedContact.location
+    ].filter(Boolean).join(' | ');
+    
+    doc.fontSize(10).fillColor('#444').text(contactLine, { align: 'center' });
+    
+    // Social Links
+    const socials = [];
+    if (mergedContact.socials.linkedin) socials.push(`LinkedIn: ${mergedContact.socials.linkedin}`);
+    if (mergedContact.socials.github) socials.push(`GitHub: ${mergedContact.socials.github}`);
+    if (mergedContact.socials.portfolio) socials.push(`Portfolio: ${mergedContact.socials.portfolio}`);
+    
+    if (socials.length > 0) {
+      doc.fontSize(9).fillColor('#0066cc').text(socials.join(' | '), { align: 'center' });
+    }
+    
+    doc.moveDown(1);
+    addHorizontalLine(doc);
+
+    // Summary
+    if (resume.summary) {
+      addSection(doc, 'PROFESSIONAL SUMMARY');
+      doc.fontSize(10).fillColor('#000').font('Helvetica')
+         .text(resume.summary, { align: 'justify' });
+      doc.moveDown(1);
+    }
+
+    // Skills
+    if (resume.skills && resume.skills.length > 0) {
+      addSection(doc, 'SKILLS');
+      const skillsText = resume.skills.join(' • ');
+      doc.fontSize(10).fillColor('#000').font('Helvetica')
+         .text(skillsText, { align: 'left' });
+      doc.moveDown(1);
+    }
+
+    // Experience
+    if (resume.experience && resume.experience.length > 0) {
+      addSection(doc, 'EXPERIENCE');
+      resume.experience.forEach((exp, index) => {
+        doc.fontSize(12).font('Helvetica-Bold').fillColor('#000')
+           .text(exp.title);
+        
+        doc.fontSize(10).font('Helvetica-Oblique').fillColor('#444')
+           .text(`${exp.company} | ${formatDate(exp.startDate)} - ${exp.current ? 'Present' : formatDate(exp.endDate)}`);
+        
+        if (exp.description) {
+          doc.fontSize(10).font('Helvetica').fillColor('#000')
+             .text(exp.description, { align: 'justify' });
+        }
+        
+        if (index < resume.experience.length - 1) doc.moveDown(0.8);
+      });
+      doc.moveDown(1);
+    }
+
+    // Internships
+    if (resume.internships && resume.internships.length > 0) {
+      addSection(doc, 'INTERNSHIPS');
+      resume.internships.forEach((intern, index) => {
+        doc.fontSize(11).font('Helvetica-Bold').fillColor('#000')
+           .text(intern.role || intern.title);
+        
+        doc.fontSize(10).font('Helvetica-Oblique').fillColor('#444')
+           .text(`${intern.company} | ${formatDate(intern.startDate)} - ${formatDate(intern.endDate)}`);
+        
+        if (intern.description) {
+          doc.fontSize(10).font('Helvetica').fillColor('#000')
+             .text(intern.description, { align: 'justify' });
+        }
+        
+        if (index < resume.internships.length - 1) doc.moveDown(0.8);
+      });
+      doc.moveDown(1);
+    }
+
+    // Projects
+    if (resume.projects && resume.projects.length > 0) {
+      addSection(doc, 'PROJECTS');
+      resume.projects.forEach((project, index) => {
+        doc.fontSize(11).font('Helvetica-Bold').fillColor('#000')
+           .text(project.title || project.name);
+        
+        if (project.technologies && project.technologies.length > 0) {
+          doc.fontSize(9).font('Helvetica').fillColor('#666')
+             .text(`Tech: ${project.technologies.join(', ')}`);
+        }
+        
+        if (project.description) {
+          doc.fontSize(10).font('Helvetica').fillColor('#000')
+             .text(project.description, { align: 'justify' });
+        }
+        
+        if (project.link) {
+          doc.fontSize(9).fillColor('#0066cc')
+             .text(`Link: ${project.link}`);
+        }
+        
+        if (index < resume.projects.length - 1) doc.moveDown(0.8);
+      });
+      doc.moveDown(1);
+    }
+
+    // Hackathons
+    if (resume.hackathons && resume.hackathons.length > 0) {
+      addSection(doc, 'HACKATHONS');
+      resume.hackathons.forEach((hack, index) => {
+        doc.fontSize(11).font('Helvetica-Bold').fillColor('#000')
+           .text(hack.name || hack.title);
+        
+        const hackDetails = [
+          hack.organizer,
+          hack.achievement || hack.position,
+          formatDate(hack.date)
+        ].filter(Boolean).join(' | ');
+        
+        doc.fontSize(10).font('Helvetica-Oblique').fillColor('#444')
+           .text(hackDetails);
+        
+        if (hack.description) {
+          doc.fontSize(10).font('Helvetica').fillColor('#000')
+             .text(hack.description, { align: 'justify' });
+        }
+        
+        if (index < resume.hackathons.length - 1) doc.moveDown(0.8);
+      });
+      doc.moveDown(1);
+    }
+
+    // Education
+    if (resume.education && resume.education.length > 0) {
+      addSection(doc, 'EDUCATION');
+      resume.education.forEach((edu, index) => {
+        doc.fontSize(11).font('Helvetica-Bold').fillColor('#000')
+           .text(edu.degree);
+        
+        doc.fontSize(10).font('Helvetica-Oblique').fillColor('#444')
+           .text(`${edu.school} | ${formatDate(edu.startDate)} - ${edu.current ? 'Present' : formatDate(edu.endDate)}`);
+        
+        if (edu.gpa) {
+          doc.fontSize(10).font('Helvetica').fillColor('#000')
+             .text(`GPA: ${edu.gpa}`);
+        }
+        
+        if (index < resume.education.length - 1) doc.moveDown(0.8);
+      });
+      doc.moveDown(1);
+    }
+
+    // Courses/Certifications
+    if (resume.courses && resume.courses.length > 0) {
+      addSection(doc, 'COURSES & CERTIFICATIONS');
+      resume.courses.forEach((course, index) => {
+        const courseLine = [
+          course.title || course.name,
+          course.provider || course.platform,
+          course.completionDate ? formatDate(course.completionDate) : null
+        ].filter(Boolean).join(' | ');
+        
+        doc.fontSize(10).font('Helvetica').fillColor('#000')
+           .text(`• ${courseLine}`);
+      });
+      doc.moveDown(1);
+    }
+
+    // Achievements
+    if (resume.achievements && resume.achievements.length > 0) {
+      addSection(doc, 'ACHIEVEMENTS');
+      resume.achievements.forEach(achievement => {
+        doc.fontSize(10).font('Helvetica').fillColor('#000')
+           .text(`• ${achievement}`);
+      });
+      doc.moveDown(1);
+    }
+
+    // Languages
+    if (resume.languages && resume.languages.length > 0) {
+      addSection(doc, 'LANGUAGES');
+      const langText = resume.languages.map(l => 
+        `${l.name} (${l.proficiency || 'Fluent'})`
+      ).join(' • ');
+      doc.fontSize(10).font('Helvetica').fillColor('#000')
+         .text(langText);
+      doc.moveDown(1);
+    }
+
+    // Interests (optional)
+    if (resume.interests && resume.interests.length > 0) {
+      addSection(doc, 'INTERESTS');
+      doc.fontSize(10).font('Helvetica').fillColor('#000')
+         .text(resume.interests.join(' • '));
+    }
+
+    // Footer
+    doc.fontSize(8).fillColor('#999')
+       .text(`Generated on ${new Date().toLocaleDateString()}`, 50, doc.page.height - 30, { align: 'center' });
+
+    // Finalize PDF
+    doc.end();
+
+  } catch (error) {
+    console.error("Error generating PDF:", error);
+    
+    // If headers not sent yet, send error JSON
+    if (!res.headersSent) {
+      res.status(500).json({ success: false, error: error.message });
+    }
+  }
+};
+
+// HELPER FUNCTIONS
+function addSection(doc, title) {
+  doc.fontSize(14).font('Helvetica-Bold').fillColor('#000')
+     .text(title.toUpperCase());
+  
+  // Underline
+  const titleWidth = doc.widthOfString(title);
+  doc.moveTo(50, doc.y + 2)
+     .lineTo(50 + titleWidth + 10, doc.y + 2)
+     .strokeColor('#0066cc')
+     .lineWidth(2)
+     .stroke();
+  
+  doc.moveDown(0.5);
+}
+
+function addHorizontalLine(doc) {
+  doc.moveTo(50, doc.y)
+     .lineTo(doc.page.width - 50, doc.y)
+     .strokeColor('#ccc')
+     .lineWidth(1)
+     .stroke();
+  doc.moveDown(0.5);
+}
+
+function formatDate(date) {
+  if (!date) return '';
+  const d = new Date(date);
+  return d.toLocaleDateString('en-US', { year: 'numeric', month: 'short' });
+}
+
+
+// Export as JSON
+exports.exportResumeAsJSON = async (req, res) => {
+  try {
+    const { resumeId } = req.params;
+    
+    const resume = await Resume.findById(resumeId)
+      .populate("projects")
+      .populate("courses")
+      .populate("internships")
+      .populate("hackathons")
+      .lean();
+
+    if (!resume) {
+      return res.status(404).json({ success: false, message: "Resume not found" });
+    }
+
+    const user = await User.findById(resume.userId).lean();
+    if (!user) {
+      return res.status(404).json({ success: false, message: "User not found" });
+    }
+
+    const mergedContact = {
+      email: resume.contact?.email || user.email,
+      phone: resume.contact?.phone || user.phone,
+      location: resume.contact?.location || user.location,
+      socials: {
+        linkedin: resume.contact?.socials?.linkedin || user.socials?.linkedin,
+        github: resume.contact?.socials?.github || user.socials?.github,
+        portfolio: resume.contact?.socials?.portfolio || user.socials?.portfolio,
+      },
+    };
+
+    const fullResume = {
+      _id: resume._id,
+      title: resume.title,
+      user: {
+        id: user._id,
+        name: user.name,
+        headline: user.headline || resume.headline,
+        contact: mergedContact,
+      },
+      summary: resume.summary,
+      skills: resume.skills,
+      achievements: resume.achievements,
+      experience: resume.experience,
+      education: resume.education,
+      projects: resume.projects,
+      courses: resume.courses,
+      internships: resume.internships,
+      hackathons: resume.hackathons,
+      languages: resume.languages,
+      interests: resume.interests,
+    };
+
+    // Set headers for file download
+    res.setHeader('Content-Type', 'application/json');
+    res.setHeader('Content-Disposition', `attachment; filename="${resume.title || 'resume'}.json"`);
+    
+    res.json(fullResume);
+
+  } catch (error) {
+    console.error("Error exporting JSON:", error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+};
+
+// Export with format selection
+exports.exportResume = async (req, res) => {
+  const { format = 'pdf' } = req.query; // ?format=pdf or ?format=json
+
+  if (format === 'json') {
+    return exports.exportResumeAsJSON(req, res);
+  } else if (format === 'pdf') {
+    return exports.exportResumeToPDF(req, res);
+  } else {
+    return res.status(400).json({ 
+      success: false, 
+      message: "Invalid format. Use 'pdf' or 'json'" 
+    });
+  }
+};
+
+exports.deleteResume=async(req,res)=>{
+   try {
+    const resume = await Resume.findOne({ _id: req.params.id, userId: req.user._id });
+    if (!resume) {
+      return res.status(404).json({ message: "Resume not found or not authorized" });
+    }
+
+    await resume.deleteOne();
+    res.status(200).json({ message: "Resume deleted successfully" });
+
+  } catch (error) {
+    console.error("Error deleting resume:", error);
+    res.status(500).json({ message: "Server error", error: error.message });
   }
 };

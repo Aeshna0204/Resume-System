@@ -5,7 +5,7 @@ resume-system-backend/
 │
 ├── controllers/
 │   ├── authController.js   # Login/Register logic
-│   └── resumeController.js # (you'll add later)
+│   |── resumeController.js # (you'll add later)
 │
 ├── models/
 │   ├── User.js

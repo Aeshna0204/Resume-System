@@ -15,7 +15,7 @@ const courseSchema = new mongoose.Schema({
     enum: ["unverified","submitted","auto_verified","manually_verified","rejected"], 
     default: "unverified" 
   },
-  evidence: {                                    // storage pointer to uploaded proof (S3 / local path)
+  evidence: {                                    
     fileUrl: { type: String },
     uploadedAt: { type: Date }
   },

@@ -5,7 +5,7 @@ const userSchema = new mongoose.Schema({
   name: { type: String, required: true, trim: true },
   email: { type: String, required: true, unique: true, lowercase: true, trim: true },
   password: { type: String, required: true },
-  // canonical contact / profile info
+
   phone: { type: String },
   location: { type: String },            // e.g. "Bengaluru, India"
   headline: { type: String },            // short tagline
@@ -15,7 +15,7 @@ const userSchema = new mongoose.Schema({
     portfolio: { type: String }
   },
   avatarUrl: { type: String },           // optional profile picture
-  // preferences / metadata
+
   isAdmin: { type: Boolean, default: false }
 }, { timestamps: true });
 
