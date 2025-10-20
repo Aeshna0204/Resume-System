@@ -12,6 +12,10 @@ This project is the **backend component** of a Resume Building & Career Ecosyste
 **Backend Development** - APIs for managing resume data, authentication, and cross-platform integration  
 **Database Architecture** - Designed schemas for users, projects, courses, internships, and hackathons
 
+## API Documentation - Postman Collection
+[Postman Collection ]([https://aeshna.dev](https://spaceflight-operator-63958023-382415.postman.co/workspace/Aeshna-Jain's-Workspace~b7907cc8-abb5-4489-82ca-daba0f39c503/collection/47076302-80b3a193-e65b-4931-b689-d64bf5ec8b61?action=share&source=copy-link&creator=47076302))
+
+
 ##  Approach & Design Decisions
 
 ### Problem Analysis
